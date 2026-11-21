@@ -1,0 +1,23 @@
+{
+  "name": "offenderwatch-qa",
+  "version": "1.0.0",
+  "description": "QA suite for OffenderWatch: test cases, bug reports, Playwright UI + API automation and a QA dashboard",
+  "private": true,
+  "scripts": {
+    "qa": "node scripts/run-qa.mjs",
+    "demo": "playwright test --project=demo",
+    "test": "playwright test --project=api --project=ui",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=ui",
+    "report": "playwright show-report reports/html",
+    "docs": "node scripts/build-docs.mjs",
+    "dashboard": "node scripts/build-dashboard.mjs",
+    "typecheck": "tsc --noEmit",
+    "platform": "node scripts/run-with-platform.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.0",
+    "@types/node": "22.10.2",
+    "typescript": "5.6.3"
+  }
+}
