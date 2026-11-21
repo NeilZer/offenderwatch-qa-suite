@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OffenderWatch QA Status</title>
+<style>
+:root{color-scheme:light;
+  --page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink-2:#52514e;--muted:#898781;--line:#e1e0d9;--ring:rgba(11,11,11,.10);
+  --good:#0ca30c;--warning:#fab219;--serious:#ec835a;--critical:#d03b3b;--neutral:#c3c2b7;
+  --s1:#2a78d6;--s3:#1baf7a;--good-ink:#006300;--critical-ink:#b22f2f;
+  --nogo-bg:#fdf0ef;--go-bg:#eef8ee}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink-2:#c3c2b7;--muted:#898781;--line:#2c2c2a;--ring:rgba(255,255,255,.10);
+  --neutral:#4a4a47;--s1:#3987e5;--s3:#199e70;--good-ink:#0ca30c;--critical-ink:#e66767;--nogo-bg:#2a1615;--go-bg:#142414}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink-2:#c3c2b7;--muted:#898781;--line:#2c2c2a;--ring:rgba(255,255,255,.10);
+  --neutral:#4a4a47;--s1:#3987e5;--s3:#199e70;--good-ink:#0ca30c;--critical-ink:#e66767;--nogo-bg:#2a1615;--go-bg:#142414}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 20px 48px}
+h1{font-size:26px;line-height:1.2;margin:2px 0 6px;font-weight:650;letter-spacing:-.01em}
+h2{font-size:15px;margin:0 0 12px;font-weight:650;display:flex;align-items:center;gap:8px}
+h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 8px;font-weight:600}
+code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--ink-2);word-break:break-all}
+.eyebrow{margin:0;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.sub,.muted{color:var(--ink-2)}.muted{font-size:13px}.small{font-size:12px;margin:12px 0 0}
+.top{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:flex-end;margin-bottom:20px}
+.top .sub{margin:0}
+.took{font-weight:400;color:var(--ink-2)}.share{color:var(--muted)}
+.stamp{display:flex;gap:24px;margin:0;flex-wrap:wrap}.stamp dt{font-size:12px;color:var(--muted)}.stamp dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}
+.verdict{display:flex;align-items:center;gap:16px;border-radius:14px;padding:16px 20px;margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--ring)}
+.verdict.nogo{background:var(--nogo-bg)}.verdict.go{background:var(--go-bg)}
+.verdict p{margin:0;font-size:16px;font-weight:500}
+.verdict-badge{flex:none;font-weight:750;font-size:18px;color:#fff;border-radius:999px;padding:6px 16px;letter-spacing:.02em}
+.nogo .verdict-badge{background:var(--critical)}.go .verdict-badge{background:var(--good)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface);border-radius:12px;padding:14px 16px;box-shadow:inset 0 0 0 1px var(--ring);display:flex;flex-direction:column;gap:2px}
+.kpi-label{color:var(--ink-2);font-size:13px;display:flex;align-items:center;gap:6px}
+.kpi b{font-size:30px;font-weight:650;line-height:1.2}.kpi small{color:var(--muted);font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-bottom:16px}
+.card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:inset 0 0 0 1px var(--ring);min-width:0}
+.card.wide{margin-bottom:16px}
+.count{font-size:12px;font-weight:600;color:var(--ink-2);background:var(--page);border-radius:999px;padding:1px 9px;box-shadow:inset 0 0 0 1px var(--ring)}
+.hero{font-size:56px;font-weight:650;line-height:1;margin:4px 0 2px}.hero span{font-size:28px;color:var(--ink-2)}
+.segbar{display:flex;gap:2px;height:28px;margin:16px 0 10px}
+.seg{border-radius:4px;display:flex;align-items:center;padding-left:8px;color:#fff;font-weight:650;font-size:13px;min-width:4px;outline-offset:2px}
+.seg.warning{color:#0b0b0b}
+.legend{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink-2)}
+.legend li{display:flex;align-items:center;gap:6px}.legend b{color:var(--ink)}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+.good{--c:var(--good)}.warning{--c:var(--warning)}.serious{--c:var(--serious)}.critical{--c:var(--critical)}.neutral{--c:var(--neutral)}.s1{--c:var(--s1)}.s3{--c:var(--s3)}
+.seg,.sw,.dot,.bar{background:var(--c)}
+.bars{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.bars li{display:grid;grid-template-columns:72px 1fr 28px;align-items:center;gap:10px}
+.bar-name{color:var(--ink-2);font-size:13px}.bar-val{font-weight:650;text-align:right;font-variant-numeric:tabular-nums}
+.bar-track{height:12px;border-radius:0 4px 4px 0;box-shadow:inset 1px 0 0 var(--neutral)}
+.bar{display:block;height:100%;border-radius:0 4px 4px 0;min-width:0}
+.status-row{display:flex;gap:8px}
+.mini{flex:1;background:var(--page);border-radius:10px;padding:8px 12px;box-shadow:inset 0 0 0 1px var(--ring)}
+.mini b{display:block;font-size:20px}.mini span{font-size:12px;color:var(--ink-2)}
+.facts{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;font-weight:600;white-space:nowrap;
+  background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 45%,transparent)}
+.pill i{font-style:normal;color:var(--c);font-weight:800}
+.pill.good i{color:var(--good-ink)}.pill.critical i{color:var(--critical-ink)}
+.reqs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.req{border-radius:10px;padding:12px 14px;background:var(--page);box-shadow:inset 3px 0 0 var(--c),inset 0 0 0 1px var(--ring)}
+.req-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.req p{margin:6px 0 4px;font-size:13px;color:var(--ink-2);line-height:1.4}.req small{color:var(--muted);font-size:12px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:hover{background:var(--page)}
+.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+details summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none}
+details summary::-webkit-details-marker{display:none}details summary h2{margin:0}
+details[open] summary .muted{display:none}details[open] summary{margin-bottom:12px}
+footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
+@media (max-width:560px){.hero{font-size:44px}.verdict{flex-direction:column;align-items:flex-start}}
+</style>
+</head>
+<body>
+<main class="wrap">
+
+<header class="top">
+  <div>
+    <p class="eyebrow">QA testing phase · status report</p>
+    <h1>OffenderWatch Monitoring Console</h1>
+    <p class="sub">Environment: <code>https://svcdemoaz.puremonitor.supercom.com/AQApplication/Neil/ (Chromium, Asia/Jerusalem)</code></p>
+  </div>
+  <dl class="stamp">
+    <div><dt>Latest automation run finished</dt><dd>21 Nov 2026, 14:59 <span class="took">· took 44s</span></dd></div>
+    <div><dt>Dashboard generated</dt><dd>21 Nov 2026, 14:59</dd></div>
+  </dl>
+</header>
+
+<section class="verdict nogo" aria-label="Release recommendation">
+  <span class="verdict-badge">✕ NO-GO</span>
+  <p>3 Critical and 8 High defects are open (9 must-fix P1); only 44% of executed test cases pass.</p>
+</section>
+<section class="kpis" aria-label="Test execution status"><div class="kpi"><span class="kpi-label">Test cases</span><b>52</b><small>48 automated · 4 manual</small></div><div class="kpi"><span class="kpi-label">Executed</span><b>52</b><small>100% of the suite</small></div><div class="kpi"><span class="kpi-label"><i class="dot good"></i>Passed</span><b>23</b><small>44% of executed</small></div><div class="kpi"><span class="kpi-label"><i class="dot critical"></i>Failed</span><b>29</b><small>56% of executed · all have bug reports</small></div><div class="kpi"><span class="kpi-label">Blocked / not run</span><b>0</b><small>nothing outstanding</small></div></section>
+<div class="grid">
+<article class="card">
+  <h2>Test execution</h2>
+  <p class="hero">44<span>%</span></p>
+  <p class="muted">of executed test cases pass</p>
+  <div class="segbar" role="img" aria-label="Test case results"><div class="seg good" style="flex:23" title="Passed: 23 (44%)" tabindex="0" aria-label="Passed: 23, 44%"><span>23</span></div><div class="seg critical" style="flex:29" title="Failed: 29 (56%)" tabindex="0" aria-label="Failed: 29, 56%"><span>29</span></div></div><ul class="legend"><li><i class="sw good"></i>Passed <b>23</b> <span class="share">· 44%</span></li><li><i class="sw critical"></i>Failed <b>29</b> <span class="share">· 56%</span></li><li><i class="sw serious"></i>Blocked <b>0</b></li><li><i class="sw neutral"></i>Not run <b>0</b></li></ul>
+</article>
+<article class="card">
+  <h2>Automation</h2>
+  <div class="segbar" role="img" aria-label="Automated versus manual test cases"><div class="seg s1" style="flex:20" title="Automated · UI: 20 (38%)" tabindex="0" aria-label="Automated · UI: 20, 38%"><span>20</span></div><div class="seg s3" style="flex:28" title="Automated · API: 28 (54%)" tabindex="0" aria-label="Automated · API: 28, 54%"><span>28</span></div><div class="seg neutral" style="flex:4" title="Manual: 4 (8%)" tabindex="0" aria-label="Manual: 4, 8%"><span>4</span></div></div><ul class="legend"><li><i class="sw s1"></i>Automated · UI <b>20</b> <span class="share">· 38%</span></li><li><i class="sw s3"></i>Automated · API <b>28</b> <span class="share">· 54%</span></li><li><i class="sw neutral"></i>Manual <b>4</b> <span class="share">· 8%</span></li></ul>
+  <h3>Latest run</h3>
+  <ul class="facts">
+      <li><b>71</b> automated tests <span class="muted">(20 UI · 51 API)</span> in 44s</li>
+      <li><span class="pill good"><i aria-hidden="true">✓</i>26 passed</span></li>
+      <li><span class="pill critical"><i aria-hidden="true">✕</i>45 failed on a documented bug</span> <span class="muted">expected — each linked to its BUG-xx</span></li>
+      <li><span class="pill neutral"><i aria-hidden="true">✓</i>0 unexpected failures</span></li>
+      <li><span class="pill neutral"><i aria-hidden="true">–</i>0 bugs look fixed — retest</span></li>
+    </ul>
+</article>
+<article class="card">
+  <h2>Defects <span class="count">18</span></h2>
+  <h3>By severity</h3>
+  <ul class="bars"><li title="Critical: 3">
+        <span class="bar-name">Critical</span>
+        <span class="bar-track"><span class="bar critical" style="width:37.5%"></span></span>
+        <span class="bar-val">3</span></li><li title="High: 8">
+        <span class="bar-name">High</span>
+        <span class="bar-track"><span class="bar serious" style="width:100%"></span></span>
+        <span class="bar-val">8</span></li><li title="Medium: 6">
+        <span class="bar-name">Medium</span>
+        <span class="bar-track"><span class="bar warning" style="width:75%"></span></span>
+        <span class="bar-val">6</span></li><li title="Low: 1">
+        <span class="bar-name">Low</span>
+        <span class="bar-track"><span class="bar neutral" style="width:12.5%"></span></span>
+        <span class="bar-val">1</span></li></ul>
+  <h3>By status</h3>
+  <div class="status-row"><div class="mini"><b>18</b><span>Open</span></div><div class="mini"><b>0</b><span>Fixed</span></div><div class="mini"><b>0</b><span>Retest</span></div></div>
+  <p class="muted small">Layer: 12 API · 6 UI</p>
+</article></div>
+
+<section class="card wide" aria-label="Requirement coverage">
+  <h2>Requirement coverage <span class="count">16/16 covered</span></h2>
+  <p class="muted">0 requirements pass · 16 fail. A requirement fails if any of its test cases fails.</p>
+  <h3>Offender management</h3><div class="reqs"><div class="req critical" title="List sorted by last name, 5 per page; pager reaches every offender; count matches what is reachable">
+            <div class="req-head"><b>FR-01</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>List sorted by last name, 5 per page; pager reaches every offender; count matches what is reachable</p>
+            <small>6 cases · 3 pass · 3 fail · BUG-01</small>
+          </div><div class="req critical" title="Search by first/last name or national ID — substring, case-insensitive">
+            <div class="req-head"><b>FR-02</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Search by first/last name or national ID — substring, case-insensitive</p>
+            <small>4 cases · 2 pass · 2 fail · BUG-07</small>
+          </div><div class="req critical" title="Create offender with required/unique/past-date/enum validation; invalid input rejected with clear message">
+            <div class="req-head"><b>FR-03</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Create offender with required/unique/past-date/enum validation; invalid input rejected with clear message</p>
+            <small>8 cases · 4 pass · 4 fail · BUG-09, BUG-10, BUG-11, BUG-12</small>
+          </div><div class="req critical" title="Edit persists exactly the form values; untouched fields keep their values">
+            <div class="req-head"><b>FR-04</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Edit persists exactly the form values; untouched fields keep their values</p>
+            <small>4 cases · 1 pass · 3 fail · BUG-03, BUG-13</small>
+          </div><div class="req critical" title="Delete after confirmation removes offender and all trail data">
+            <div class="req-head"><b>FR-05</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Delete after confirmation removes offender and all trail data</p>
+            <small>5 cases · 2 pass · 3 fail · BUG-02</small>
+          </div><div class="req critical" title="Dates shown as DD/MM/YYYY and equal to the stored value">
+            <div class="req-head"><b>FR-06</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Dates shown as DD/MM/YYYY and equal to the stored value</p>
+            <small>4 cases · 2 pass · 2 fail · BUG-04</small>
+          </div></div><h3>Trail &amp; map</h3><div class="reqs"><div class="req critical" title="Trail ordered oldest → newest in table and on the map line">
+            <div class="req-head"><b>FR-07</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Trail ordered oldest → newest in table and on the map line</p>
+            <small>4 cases · 1 pass · 3 fail · BUG-06</small>
+          </div><div class="req critical" title="Clicking a map point shows its timestamp, speed, battery, signal">
+            <div class="req-head"><b>FR-08</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Clicking a map point shows its timestamp, speed, battery, signal</p>
+            <small>2 cases · 1 pass · 1 fail · BUG-15</small>
+          </div><div class="req critical" title="Latest reading = most recent point; Last seen = its timestamp">
+            <div class="req-head"><b>FR-09</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Latest reading = most recent point; Last seen = its timestamp</p>
+            <small>2 cases · 1 pass · 1 fail · BUG-05</small>
+          </div><div class="req critical" title="Add location with coordinate / speed / battery / signal validation">
+            <div class="req-head"><b>FR-10</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Add location with coordinate / speed / battery / signal validation</p>
+            <small>6 cases · 2 pass · 4 fail · BUG-14, BUG-16, BUG-17</small>
+          </div></div><h3>Dashboard &amp; statistics</h3><div class="reqs"><div class="req critical" title="Top-bar totals are live and accurate after every create/delete">
+            <div class="req-head"><b>FR-11</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Top-bar totals are live and accurate after every create/delete</p>
+            <small>6 cases · 5 pass · 1 fail · BUG-02</small>
+          </div></div><h3>REST API</h3><div class="reqs"><div class="req critical" title="GET /api/offenders paging contract; metadata consistent with data">
+            <div class="req-head"><b>API-01</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>GET /api/offenders paging contract; metadata consistent with data</p>
+            <small>4 cases · 2 pass · 2 fail · BUG-01</small>
+          </div><div class="req critical" title="404 for unknown resources; 201 on create; 204 on delete">
+            <div class="req-head"><b>API-02</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>404 for unknown resources; 201 on create; 204 on delete</p>
+            <small>6 cases · 3 pass · 3 fail · BUG-08</small>
+          </div><div class="req critical" title="POST/PUT enforce UI validation rules; 400 with error description">
+            <div class="req-head"><b>API-03</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>POST/PUT enforce UI validation rules; 400 with error description</p>
+            <small>8 cases · 1 pass · 7 fail · BUG-09, BUG-10, BUG-11, BUG-12, BUG-13, BUG-14, BUG-18</small>
+          </div><div class="req critical" title="Trail endpoint returns points chronologically">
+            <div class="req-head"><b>API-04</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Trail endpoint returns points chronologically</p>
+            <small>1 cases · 0 pass · 1 fail · BUG-06</small>
+          </div><div class="req critical" title="Stats totals consistent with stored data at all times">
+            <div class="req-head"><b>API-05</b><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></div>
+            <p>Stats totals consistent with stored data at all times</p>
+            <small>5 cases · 3 pass · 2 fail · BUG-02</small>
+          </div></div>
+</section>
+
+<section class="card wide" aria-label="Open defects">
+  <h2>Open defects</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>ID</th><th>Defect</th><th>Severity</th><th>Priority</th><th>Requirement</th><th>Layer</th><th>Status</th></tr></thead>
+    <tbody><tr><td class="mono">BUG-03</td><td>Saving the Edit form silently resets the offender&#39;s Risk level to &quot;Low&quot;</td><td><span class="pill critical">Critical</span></td><td>P1</td><td>FR-04</td><td>UI (primary) + API (contributing)</td><td>Open</td></tr><tr><td class="mono">BUG-05</td><td>&quot;Latest reading&quot; shows the speed, battery and signal of the OLDEST trail point</td><td><span class="pill critical">Critical</span></td><td>P1</td><td>FR-09</td><td>UI</td><td>Open</td></tr><tr><td class="mono">BUG-15</td><td>A trail point with signal outside 1–5 crashes the whole console to a blank page</td><td><span class="pill critical">Critical</span></td><td>P1</td><td>FR-08</td><td>UI</td><td>Open</td></tr><tr><td class="mono">BUG-01</td><td>Pager hides the last (partial) page: totalPages is floor(total/pageSize) instead of ceiling</td><td><span class="pill serious">High</span></td><td>P1</td><td>FR-01, API-01</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-02</td><td>Deleting an offender leaves their trail points in the system and in the trail-point total</td><td><span class="pill serious">High</span></td><td>P1</td><td>FR-05, FR-11, API-05</td><td>API / data</td><td>Open</td></tr><tr><td class="mono">BUG-04</td><td>Date of birth is displayed one month too early (January shows as month &quot;00&quot;)</td><td><span class="pill serious">High</span></td><td>P1</td><td>FR-06</td><td>UI</td><td>Open</td></tr><tr><td class="mono">BUG-06</td><td>Trail is returned and drawn in insertion order, not chronological order</td><td><span class="pill serious">High</span></td><td>P1</td><td>API-04, FR-07</td><td>API (root cause) + UI</td><td>Open</td></tr><tr><td class="mono">BUG-09</td><td>Duplicate national ID is accepted on create</td><td><span class="pill serious">High</span></td><td>P1</td><td>FR-03, API-03</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-14</td><td>Location points are not validated: invalid coordinates, negative speed, battery and signal out of range all accepted</td><td><span class="pill serious">High</span></td><td>P1</td><td>FR-10, API-03</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-10</td><td>Required fields Last name and National ID are not enforced</td><td><span class="pill serious">High</span></td><td>P2</td><td>FR-03, API-03</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-13</td><td>PUT /api/offenders/{id} performs no validation at all</td><td><span class="pill serious">High</span></td><td>P2</td><td>FR-04, API-03</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-07</td><td>Search is case-sensitive (&quot;cohen&quot; finds nothing)</td><td><span class="pill warning">Medium</span></td><td>P2</td><td>FR-02</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-08</td><td>Unknown offender id returns 200 (empty body / empty trail) instead of 404</td><td><span class="pill warning">Medium</span></td><td>P2</td><td>API-02</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-11</td><td>Date of birth is not validated: future dates and non-dates are accepted</td><td><span class="pill warning">Medium</span></td><td>P2</td><td>FR-03, API-03</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-12</td><td>Risk level and Status accept any string (e.g. &quot;Critical&quot;, &quot;Deleted&quot;)</td><td><span class="pill warning">Medium</span></td><td>P2</td><td>FR-03, API-03</td><td>API</td><td>Open</td></tr><tr><td class="mono">BUG-16</td><td>Add-location form fails silently when the server rejects the point</td><td><span class="pill warning">Medium</span></td><td>P2</td><td>FR-10</td><td>UI</td><td>Open</td></tr><tr><td class="mono">BUG-17</td><td>Blank Speed / Battery in the add-location form are silently saved as 0</td><td><span class="pill warning">Medium</span></td><td>P2</td><td>FR-10</td><td>UI</td><td>Open</td></tr><tr><td class="mono">BUG-18</td><td>Malformed request body returns 400 with an empty body (no error description)</td><td><span class="pill neutral">Low</span></td><td>P3</td><td>API-03</td><td>API</td><td>Open</td></tr></tbody>
+  </table></div>
+</section>
+
+<section class="card wide">
+  <details>
+    <summary><h2>All 52 test cases</h2><span class="muted">show</span></summary>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>Test case</th><th>Req.</th><th>Priority</th><th>Type</th><th>Automation</th><th>Result</th><th>Bugs</th></tr></thead>
+      <tbody><tr><td class="mono">TC-01</td><td>First page lists 5 offenders sorted alphabetically by last name</td><td>FR-01</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-02</td><td>Pager reaches every offender; pages = ceil(total/5)</td><td>FR-01</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-01</td></tr><tr><td class="mono">TC-03</td><td>API totalPages = ceil(total / pageSize) for many page sizes</td><td>API-01, FR-01</td><td>High</td><td>API</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-01</td></tr><tr><td class="mono">TC-04</td><td>Following totalPages returns every offender exactly once</td><td>API-01, FR-01</td><td>High</td><td>API</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-01</td></tr><tr><td class="mono">TC-05</td><td>List response contract and last-name sort order</td><td>API-01, FR-01</td><td>High</td><td>API</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-06</td><td>Out-of-range and invalid paging parameters handled gracefully</td><td>API-01</td><td>Low</td><td>Negative</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-07</td><td>Sorting is case-insensitive (lower-case last name sorts among A…)</td><td>FR-01</td><td>Low</td><td>Data</td><td>Manual</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-08</td><td>Search matches substrings of first name, last name and national ID</td><td>FR-02</td><td>High</td><td>API</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-09</td><td>Search is case-insensitive (API)</td><td>FR-02</td><td>High</td><td>API</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-07</td></tr><tr><td class="mono">TC-10</td><td>Lower-case search in the UI finds the offender</td><td>FR-02</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-07</td></tr><tr><td class="mono">TC-11</td><td>Special characters / no-match search return an empty result</td><td>FR-02</td><td>Low</td><td>Negative</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-12</td><td>Operator creates a valid offender through the UI</td><td>FR-03, FR-11</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-13</td><td>API creates a valid offender with 201 and stores it as sent</td><td>FR-03, API-02</td><td>High</td><td>API</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-14</td><td>First name is required (empty / whitespace rejected)</td><td>FR-03, API-03</td><td>High</td><td>Negative</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-15</td><td>Last name and national ID are required</td><td>FR-03, API-03</td><td>High</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-10</td></tr><tr><td class="mono">TC-16</td><td>Duplicate national ID is rejected</td><td>FR-03, API-03</td><td>High</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-09</td></tr><tr><td class="mono">TC-17</td><td>Date of birth must be a valid date in the past</td><td>FR-03, API-03</td><td>High</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-11</td></tr><tr><td class="mono">TC-18</td><td>Risk level and status restricted to allowed values</td><td>FR-03, API-03</td><td>Medium</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-12</td></tr><tr><td class="mono">TC-19</td><td>Empty create form shows a clear error and saves nothing</td><td>FR-03</td><td>Medium</td><td>Negative</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-20</td><td>Malformed JSON body returns 400 with an error description</td><td>API-03</td><td>Low</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-18</td></tr><tr><td class="mono">TC-21</td><td>Editing one field keeps all untouched fields (incl. risk level)</td><td>FR-04</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-03</td></tr><tr><td class="mono">TC-22</td><td>Changing risk level in the form persists the value shown</td><td>FR-04</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-03</td></tr><tr><td class="mono">TC-23</td><td>API PUT with a full valid payload persists every field</td><td>FR-04</td><td>High</td><td>API</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-24</td><td>PUT enforces the same validation as create</td><td>FR-04, API-03</td><td>High</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-13</td></tr><tr><td class="mono">TC-25</td><td>Delete requires confirmation and removes the offender</td><td>FR-05</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-26</td><td>Deleted offender returns 404 on GET</td><td>FR-05, API-02</td><td>High</td><td>API</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-08</td></tr><tr><td class="mono">TC-27</td><td>Deleting an offender deletes their trail data</td><td>FR-05, API-05</td><td>High</td><td>Data</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-02</td></tr><tr><td class="mono">TC-28</td><td>DELETE returns 204; repeated DELETE returns 404</td><td>FR-05, API-02</td><td>Medium</td><td>API</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-29</td><td>Roster dates of birth are DD/MM/YYYY and equal to the stored value</td><td>FR-06</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-04</td></tr><tr><td class="mono">TC-30</td><td>Detail header shows the stored date of birth</td><td>FR-06</td><td>Medium</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-04</td></tr><tr><td class="mono">TC-31</td><td>Trail timestamps shown as DD/MM/YYYY HH:mm matching the stored instant</td><td>FR-06</td><td>Low</td><td>UI</td><td>Manual</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-32</td><td>Trail API returns points chronologically</td><td>API-04, FR-07</td><td>High</td><td>API</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-06</td></tr><tr><td class="mono">TC-33</td><td>Trail table is ordered oldest to newest</td><td>FR-07</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-06</td></tr><tr><td class="mono">TC-34</td><td>Map line runs from the oldest point to the newest point</td><td>FR-07</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-06</td></tr><tr><td class="mono">TC-35</td><td>Map shows one marker per trail point and a trail line</td><td>FR-07</td><td>Medium</td><td>UI</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-36</td><td>Clicking a map point shows its recorded data</td><td>FR-08</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-37</td><td>A point with an out-of-range signal does not crash the console</td><td>FR-08</td><td>High</td><td>Negative</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-15</td></tr><tr><td class="mono">TC-38</td><td>Latest reading shows speed/battery/signal of the most recent point</td><td>FR-09</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-05</td></tr><tr><td class="mono">TC-39</td><td>Last seen shows the most recent timestamp</td><td>FR-09, FR-06</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-40</td><td>Operator adds a valid location point through the UI</td><td>FR-10, FR-11</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-41</td><td>API rejects out-of-range location values</td><td>FR-10, API-03</td><td>High</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-14, BUG-18</td></tr><tr><td class="mono">TC-42</td><td>API accepts valid boundary location values</td><td>FR-10</td><td>Medium</td><td>API</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-43</td><td>UI rejects invalid location values with a visible error</td><td>FR-10</td><td>High</td><td>Negative</td><td>UI</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-14, BUG-16</td></tr><tr><td class="mono">TC-44</td><td>Blank speed / battery are not silently saved as 0</td><td>FR-10</td><td>Medium</td><td>Negative</td><td>Manual</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-17</td></tr><tr><td class="mono">TC-45</td><td>UI shows an error when the server rejects a location</td><td>FR-10</td><td>Medium</td><td>Negative</td><td>Manual</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-16</td></tr><tr><td class="mono">TC-46</td><td>Top-bar counters equal the stats API</td><td>FR-11, API-05</td><td>High</td><td>UI</td><td>UI</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-47</td><td>Counters update after creating offenders and points</td><td>API-05, FR-11</td><td>High</td><td>API</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-48</td><td>Trail-point total drops when an offender with a trail is deleted</td><td>API-05, FR-11, FR-05</td><td>High</td><td>Data</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-02</td></tr><tr><td class="mono">TC-49</td><td>Offender totals match the stored offenders</td><td>API-05, FR-11</td><td>High</td><td>API</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr><tr><td class="mono">TC-50</td><td>GET unknown offender returns 404</td><td>API-02</td><td>High</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-08</td></tr><tr><td class="mono">TC-51</td><td>Trail of an unknown offender returns 404</td><td>API-02</td><td>Medium</td><td>Negative</td><td>API</td><td><span class="pill critical"><i aria-hidden="true">✕</i>Failed</span></td><td class="mono">BUG-08</td></tr><tr><td class="mono">TC-52</td><td>PUT / DELETE / POST-location on an unknown offender return 404</td><td>API-02</td><td>Medium</td><td>Negative</td><td>API</td><td><span class="pill good"><i aria-hidden="true">✓</i>Passed</span></td><td class="mono">—</td></tr></tbody>
+    </table></div>
+  </details>
+</section>
+<footer>Generated by <code>npm run dashboard</code> from qa/test-cases.json, qa/bugs.json and reports/results.json — numbers are never typed by hand.</footer>
+</main>
+</body>
+</html>
