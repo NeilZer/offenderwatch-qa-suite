@@ -15,6 +15,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * On Windows, npm/npx/docker are .cmd shims that need a shell. Node (DEP0190) warns when an args array is
+ * combined with `shell: true`, because the args are not escaped — so build ONE quoted command line instead.
+ */
+function shellCommand(command, args) {
+  const quote = (a) => (/[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
+  return [command, ...args.map(quote)].join(' ');
+}
 const ENV_FILE = path.join(ROOT, '.env');
 if (fs.existsSync(ENV_FILE)) process.loadEnvFile(ENV_FILE); // existing variables win
 
@@ -65,10 +74,9 @@ async function createRun() {
 const runId = await createRun();
 console.log(`▶ Reporting to ${platformUrl}/runs/${runId}`);
 const projectArgs = projects.length ? [] : ['--project=api', '--project=ui']; // never the slow "demo" project by default
-const result = spawnSync('npx', ['playwright', 'test', ...projectArgs, ...args], {
-  cwd: ROOT,
-  stdio: 'inherit',
-  shell: process.platform === 'win32',
-  env: { ...process.env, PLATFORM_RUN_ID: String(runId) },
-});
+const testArgs = ['playwright', 'test', ...projectArgs, ...args];
+const options = { cwd: ROOT, stdio: 'inherit', env: { ...process.env, PLATFORM_RUN_ID: String(runId) } };
+const result = process.platform === 'win32'
+  ? spawnSync(shellCommand('npx', testArgs), { ...options, shell: true })
+  : spawnSync('npx', testArgs, options);
 process.exit(result.status ?? 1);

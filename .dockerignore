@@ -1,0 +1,9 @@
+# Used when the platform's Docker build takes this suite as its "suite" build context.
+node_modules
+reports
+test-results
+playwright-report
+.env
+INTERVIEW_NOTES.md
+.git
+*.zip

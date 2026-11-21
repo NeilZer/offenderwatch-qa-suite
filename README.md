@@ -177,6 +177,9 @@ No number on the dashboard is typed by hand.
 
 ## 7. Reporting into the Test Management Platform (Part 5)
 
+The platform repository (`offenderwatch-test-platform`) expects this suite in the **same parent folder**, named
+`SuperCom` or `offenderwatch-qa-suite`. It finds either name automatically.
+
 The suite also works as the engine of the platform in `../SuperCom-Platform`. Nothing changes when you run it
 on its own. When the platform starts it, it sets these environment variables:
 

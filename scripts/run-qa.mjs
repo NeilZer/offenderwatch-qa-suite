@@ -8,15 +8,22 @@
 import { spawnSync } from 'node:child_process';
 import { ROOT } from './lib/qa-model.mjs';
 
+/**
+ * On Windows, npm/npx/docker are .cmd shims that need a shell. Node (DEP0190) warns when an args array is
+ * combined with `shell: true`, because the args are not escaped — so build ONE quoted command line instead.
+ */
+function shellCommand(command, args) {
+  const quote = (a) => (/[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
+  return [command, ...args.map(quote)].join(' ');
+}
+
 /** `useShell` only for npx: it is a .cmd file on Windows. Node itself is started directly, so a path
  *  with spaces ("C:\Program Files\nodejs\node.exe") is not split by the shell. */
 function run(command, args, extraEnv = {}, useShell = false) {
-  const result = spawnSync(command, args, {
-    cwd: ROOT,
-    stdio: 'inherit',
-    shell: useShell && process.platform === 'win32',
-    env: { ...process.env, ...extraEnv },
-  });
+  const options = { cwd: ROOT, stdio: 'inherit', env: { ...process.env, ...extraEnv } };
+  const result = useShell && process.platform === 'win32'
+    ? spawnSync(shellCommand(command, args), { ...options, shell: true })
+    : spawnSync(command, args, options);
   if (result.error) throw result.error;
   return result.status ?? 1;
 }
