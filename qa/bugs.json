@@ -1,0 +1,373 @@
+{
+  "meta": {
+    "environment": "Personal instance https://svcdemoaz.puremonitor.supercom.com/AQApplication/Neil/ — Chromium 1228 (Playwright 1.61), Windows 11, browser timezone Asia/Jerusalem",
+    "reportedBy": "Neil",
+    "reportedOn": "2026-11-21",
+    "severityScale": {
+      "Critical": "Wrong or lost safety-relevant data, silent corruption, or the console becomes unusable. No workaround.",
+      "High": "A PRD requirement is broken for a main flow; workaround is awkward or unreliable.",
+      "Medium": "Requirement broken in a secondary flow, or a workaround exists.",
+      "Low": "Minor deviation, little user impact."
+    },
+    "priorityScale": {
+      "P1": "Fix before release.",
+      "P2": "Fix in this release if possible; release blocker only in combination.",
+      "P3": "Can be scheduled for a later release."
+    }
+  },
+  "bugs": [
+    {
+      "id": "BUG-01",
+      "title": "Pager hides the last (partial) page: totalPages is floor(total/pageSize) instead of ceiling",
+      "severity": "High",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["FR-01", "API-01"],
+      "layer": "API",
+      "testCases": ["TC-02", "TC-03", "TC-04"],
+      "steps": [
+        "Open the console with the 11 seeded offenders.",
+        "Read the pager: \"Page 1 of 2 (11 results)\".",
+        "Click Next ›, then try to click Next › again.",
+        "Call GET /api/offenders?page=1&pageSize=5 and GET /api/offenders?page=3&pageSize=5."
+      ],
+      "expected": "3 pages (ceil(11/5)); page 3 shows \"Peretz, Michael\"; every one of the 11 offenders is reachable.",
+      "actual": "Pager shows 2 pages and Next is disabled on page 2. \"Peretz, Michael\" (11th alphabetically) can never be reached by paging. The API itself returns him on page=3, while reporting totalPages=2.",
+      "layerAnalysis": "API. The UI renders `totalPages` exactly as the API returns it and disables Next when page >= totalPages. The API response is internally inconsistent: total=11, pageSize=5, totalPages=2, yet page=3 returns one item. Same floor() pattern for every size: pageSize=3 → 3 (expected 4), pageSize=4 → 2 (expected 3), pageSize=10 → 1 (expected 2).",
+      "evidence": "GET api/offenders?page=1&pageSize=5 → {\"total\":11,\"page\":1,\"pageSize\":5,\"totalPages\":2}\nGET api/offenders?page=3&pageSize=5 → items:[{\"lastName\":\"Peretz\",...}], totalPages:2\nUI pager: \"Page 2 of 2 (11 results)\" with Next disabled",
+      "impact": "Any offender who sorts onto the final partial page is invisible when browsing the roster. With 11 records that is 1 offender; it grows to up to 4 per page size."
+    },
+    {
+      "id": "BUG-02",
+      "title": "Deleting an offender leaves their trail points in the system and in the trail-point total",
+      "severity": "High",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["FR-05", "FR-11", "API-05"],
+      "layer": "API / data",
+      "testCases": ["TC-27", "TC-48"],
+      "steps": [
+        "POST /api/offenders (valid offender) → note id X.",
+        "POST /api/offenders/X/locations three times.",
+        "GET /api/stats → note totalLocationPoints = N.",
+        "DELETE /api/offenders/X (204), or delete through the UI.",
+        "GET /api/offenders/X/trail and GET /api/stats."
+      ],
+      "expected": "Trail of X is gone (404 or empty) and totalLocationPoints = N − 3. The top bar \"Trail points\" decreases by 3.",
+      "actual": "GET /api/offenders/X/trail still returns all 3 points. totalLocationPoints stays at N. The top bar keeps counting them.",
+      "layerAnalysis": "API / data. The delete endpoint removes the offender row only; location rows are not cascaded. /api/stats counts the orphaned rows. The UI is correct — it re-reads /api/stats after delete and shows what it receives. Evidence of accumulation on the Neil instance: 11 offenders own 166 points, but stats reports 186 (orphans from earlier deletes).",
+      "evidence": "Before delete: {\"totalOffenders\":19,\"activeOffenders\":17,\"totalLocationPoints\":169}\nDELETE api/offenders/118 → 204\nAfter delete:  {\"totalOffenders\":18,\"activeOffenders\":16,\"totalLocationPoints\":169}\nGET api/offenders/118/trail → 200 [3 points, offenderId 118]",
+      "impact": "Location history of a removed person is retained (privacy/data-retention risk) and the dashboard total is permanently inflated."
+    },
+    {
+      "id": "BUG-03",
+      "title": "Saving the Edit form silently resets the offender's Risk level to \"Low\"",
+      "severity": "Critical",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["FR-04"],
+      "layer": "UI (primary) + API (contributing)",
+      "testCases": ["TC-21", "TC-22"],
+      "steps": [
+        "Create or pick an offender with Risk level = High (e.g. Cohen, David).",
+        "Click Edit. The form shows Risk level = High.",
+        "Change only the first name (or change Risk level to Medium) and click Save.",
+        "Look at the Risk badge in the list, and GET /api/offenders/{id}."
+      ],
+      "expected": "Risk level keeps the value shown in the form (High, or Medium if changed).",
+      "actual": "Risk level is saved as Low in every case — whatever the form shows.",
+      "layerAnalysis": "UI: the Save handler builds the PUT body from firstName, lastName, nationalId, dateOfBirth and status only — riskLevel is never sent (visible in the request payload in DevTools/Playwright). API (contributing): PUT treats a missing riskLevel as the default \"Low\" instead of rejecting the request (400) or keeping the stored value. Proof: PUT with riskLevel=High persists High; the same PUT without riskLevel stores Low.",
+      "evidence": "UI request body on Save: {\"firstName\":\"Zedd\",\"lastName\":\"Aaqa\",\"nationalId\":\"911000001\",\"dateOfBirth\":\"1980-05-05\",\"status\":\"Active\"}   ← no riskLevel\nGET api/offenders/132 after Save → \"riskLevel\":\"Low\" (was \"High\")\nDirect API: PUT {…,\"riskLevel\":\"High\"} → High ; PUT {…without riskLevel} → Low",
+      "impact": "Any routine edit (typo in a name) downgrades a High-risk offender to Low with no warning. Monitoring priority is driven by this field."
+    },
+    {
+      "id": "BUG-04",
+      "title": "Date of birth is displayed one month too early (January shows as month \"00\")",
+      "severity": "High",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["FR-06"],
+      "layer": "UI",
+      "testCases": ["TC-29", "TC-30"],
+      "steps": [
+        "Open the console.",
+        "Compare the Date of birth column with GET /api/offenders.",
+        "Select an offender and compare the DOB in the detail header."
+      ],
+      "expected": "Cohen, David → 07/03/1982; Mizrahi, Rachel → 12/01/1988 (DD/MM/YYYY of the stored value).",
+      "actual": "Cohen → 07/02/1982; Mizrahi → 12/00/1988. Every DOB is shifted back one month, in the list and in the detail header.",
+      "layerAnalysis": "UI. The API returns the correct ISO dates (\"1982-03-07\", \"1988-01-12\") and the Edit form pre-fills the correct value (1982-03-07), so storage is right. The display formatter uses JavaScript's 0-based Date.getMonth() without +1. Secondary issue in the same function: the date is parsed as UTC midnight and read in local time, so for operators west of UTC (e.g. America/New_York) the day is also one less.",
+      "evidence": "API: {\"lastName\":\"Mizrahi\",\"dateOfBirth\":\"1988-01-12\"}\nUI list row: \"Mizrahi, Rachel | 204518793 | 12/00/1988\"\nUI detail: \"DOB: 07/02/1982\" for Cohen (API 1982-03-07)\nSame row, two browser timezones (API 1998-02-06): Asia/Jerusalem → \"Amar, Noa | 06/01/1998\"; America/New_York → \"Amar, Noa | 05/01/1998\"",
+      "impact": "Operators verify identity by DOB; every displayed DOB is wrong and January dates are impossible values."
+    },
+    {
+      "id": "BUG-05",
+      "title": "\"Latest reading\" shows the speed, battery and signal of the OLDEST trail point",
+      "severity": "Critical",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["FR-09"],
+      "layer": "UI",
+      "testCases": ["TC-38"],
+      "steps": [
+        "Select Cohen, David.",
+        "Read the Latest reading card.",
+        "GET /api/offenders/1/trail and find the point with the latest timestamp (2026-08-09T11:29Z, id 1)."
+      ],
+      "expected": "23 km/h · 68% battery · 1/5 signal · Last seen 09/08/2026 14:29 (all from the newest point).",
+      "actual": "38.4 km/h · 87% battery · 4/5 signal (values of the OLDEST point, 06:22Z) next to \"Last seen 09/08/2026, 14:29\" (newest). The card mixes two different points.",
+      "layerAnalysis": "UI. The API data is complete and the UI already sorts the trail chronologically for this card; it then takes element [0] (oldest) for the readings and the last element for \"Last seen\". Independent of BUG-06: it reproduces with a trail inserted in perfect chronological order.",
+      "evidence": "Trail (API) newest point id 1 @ 11:29Z: speed 23, battery 68, signal 1\nUI card: \"38.4 km/h · 87% battery · 4/5 signal · Last seen: 09/08/2026, 14:29\"",
+      "impact": "The operator sees a healthy battery/signal while the device is actually at 68% / 1 bar — low-battery and lost-signal situations are hidden."
+    },
+    {
+      "id": "BUG-06",
+      "title": "Trail is returned and drawn in insertion order, not chronological order",
+      "severity": "High",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["API-04", "FR-07"],
+      "layer": "API (root cause) + UI",
+      "testCases": ["TC-32", "TC-33", "TC-34"],
+      "steps": [
+        "GET /api/offenders/1/trail.",
+        "Select Cohen, David in the console; read the trail table and look at the red line on the map."
+      ],
+      "expected": "Points ordered oldest → newest in the API, in the table and along the map line.",
+      "actual": "API returns points ordered by id (timestamps 11:29, 07:10, 10:21, 06:44 …). The table lists them in the same order and the map line zig-zags between them instead of following the movement. Reproduces for all 11 seeded offenders.",
+      "layerAnalysis": "API: the order violates API-04 directly (sorted by id, not timestamp). UI: also at fault for FR-07 — it already sorts a copy for the Latest-reading card but uses the unsorted array for the table and the polyline, so even a fixed API would leave the UI relying on server order.",
+      "evidence": "GET api/offenders/1/trail → ids 1,2,3,4 with timestamps 11:29Z, 07:10Z, 10:21Z, 06:44Z\nUI table first rows: \"1 | 09/08/2026, 14:29\", \"2 | 09/08/2026, 10:10\", \"3 | 09/08/2026, 13:21\" …",
+      "impact": "The map no longer shows the real route; an operator cannot reconstruct where the person went or in what order."
+    },
+    {
+      "id": "BUG-07",
+      "title": "Search is case-sensitive (\"cohen\" finds nothing)",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "Open",
+      "requirements": ["FR-02"],
+      "layer": "API",
+      "testCases": ["TC-09", "TC-10"],
+      "steps": [
+        "Type \"cohen\" (or \"COHEN\", \"david\") in the search box.",
+        "Call GET /api/offenders?search=cohen."
+      ],
+      "expected": "Cohen, David is returned (matching is case-insensitive).",
+      "actual": "\"No offenders found\" / API total 0. \"Cohen\" returns 1. Substring matching itself works (\"ohe\" → Cohen).",
+      "layerAnalysis": "API. The UI passes the typed text unchanged as ?search=; the API returns 0 for the lowercase term and 1 for the capitalised one.",
+      "evidence": "GET api/offenders?search=Cohen → total 1\nGET api/offenders?search=cohen → total 0\nGET api/offenders?search=COHEN → total 0",
+      "impact": "Operators who type in lower case conclude an offender does not exist."
+    },
+    {
+      "id": "BUG-08",
+      "title": "Unknown offender id returns 200 (empty body / empty trail) instead of 404",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "Open",
+      "requirements": ["API-02"],
+      "layer": "API",
+      "testCases": ["TC-26", "TC-50", "TC-51"],
+      "steps": [
+        "GET /api/offenders/99999.",
+        "GET /api/offenders/99999/trail.",
+        "Delete an offender, then GET /api/offenders/{deletedId}."
+      ],
+      "expected": "HTTP 404 for every request.",
+      "actual": "GET offender → 200 with an empty body. GET trail → 200 []. A deleted offender id also returns 200 (empty). PUT/DELETE/POST-location on the same id correctly return 404, so the API is inconsistent.",
+      "layerAnalysis": "API — pure contract issue, no UI involved.",
+      "evidence": "GET api/offenders/99999 → 200, Content-Length 0\nGET api/offenders/99999/trail → 200 []\nDELETE api/offenders/99999 → 404 {\"error\":\"Offender not found.\"}",
+      "impact": "Clients cannot tell \"not found\" from \"found\"; a JSON parse of the empty body fails in consumers."
+    },
+    {
+      "id": "BUG-09",
+      "title": "Duplicate national ID is accepted on create",
+      "severity": "High",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["FR-03", "API-03"],
+      "layer": "API",
+      "testCases": ["TC-16"],
+      "steps": [
+        "In the UI click + Add Offender, enter national ID 305412876 (already used by Cohen, David) and valid other fields, click Create — or POST the same payload to /api/offenders."
+      ],
+      "expected": "400 with an error such as \"National ID already exists\"; nothing saved.",
+      "actual": "201 Created; two offenders now share national ID 305412876. Searching that ID returns both.",
+      "layerAnalysis": "API — the uniqueness rule is not enforced server-side (the UI has no client-side check either, but the PRD rule is a data-integrity rule that must live in the API).",
+      "evidence": "POST api/offenders {\"firstName\":\"Dup\",\"lastName\":\"Nid\",\"nationalId\":\"305412876\",…} → 201 {\"id\":121,…}",
+      "impact": "Two people with one identity: trails, alerts and court records can be attributed to the wrong person."
+    },
+    {
+      "id": "BUG-10",
+      "title": "Required fields Last name and National ID are not enforced",
+      "severity": "High",
+      "priority": "P2",
+      "status": "Open",
+      "requirements": ["FR-03", "API-03"],
+      "layer": "API",
+      "testCases": ["TC-15"],
+      "steps": [
+        "POST /api/offenders with lastName \"\" (other fields valid).",
+        "POST /api/offenders with nationalId \"\" (other fields valid).",
+        "(UI) Add Offender, fill only First name, click Create."
+      ],
+      "expected": "400 \"Last name is required.\" / \"National ID is required.\"; nothing saved.",
+      "actual": "201 Created for both. The UI creates an offender displayed as \", NoLast\" that sorts to the top of the list. Only firstName is validated.",
+      "layerAnalysis": "API — firstName validation exists and works (400 \"First name is required.\"), proving the validator is present but incomplete.",
+      "evidence": "POST {lastName:\"\"} → 201 {\"id\":119,\"lastName\":\"\"}\nPOST {nationalId:\"\"} → 201 {\"id\":120,\"nationalId\":\"\"}",
+      "impact": "Incomplete identity records; nameless rows in the roster."
+    },
+    {
+      "id": "BUG-11",
+      "title": "Date of birth is not validated: future dates and non-dates are accepted",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "Open",
+      "requirements": ["FR-03", "API-03"],
+      "layer": "API",
+      "testCases": ["TC-17"],
+      "steps": [
+        "POST /api/offenders with dateOfBirth \"2030-01-01\".",
+        "POST /api/offenders with dateOfBirth \"notadate\"."
+      ],
+      "expected": "400 for both (DOB must be a valid date in the past).",
+      "actual": "201 for both; \"notadate\" is stored verbatim and rendered as \"notadate\" in the DOB column.",
+      "layerAnalysis": "API — no date parsing or range check; field is stored as free text.",
+      "evidence": "POST {dateOfBirth:\"2030-01-01\"} → 201\nPOST {dateOfBirth:\"notadate\"} → 201 {\"dateOfBirth\":\"notadate\"}",
+      "impact": "Invalid identity data; downstream age calculations break."
+    },
+    {
+      "id": "BUG-12",
+      "title": "Risk level and Status accept any string (e.g. \"Critical\", \"Deleted\")",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "Open",
+      "requirements": ["FR-03", "API-03"],
+      "layer": "API",
+      "testCases": ["TC-18"],
+      "steps": [
+        "POST /api/offenders with riskLevel \"Critical\".",
+        "POST /api/offenders with status \"Deleted\"."
+      ],
+      "expected": "400 — allowed values are Low/Medium/High and Active/Inactive.",
+      "actual": "201 for both; values stored and shown as unstyled badges. PUT accepts them too (\"Extreme\").",
+      "layerAnalysis": "API — no enum validation. The UI only offers valid options, so this is reachable via API (and any integration) only.",
+      "evidence": "POST {riskLevel:\"Critical\"} → 201 {\"riskLevel\":\"Critical\"}\nPOST {status:\"Deleted\"} → 201 {\"status\":\"Deleted\"}",
+      "impact": "Offenders with an unknown risk/status fall out of any filter, report or count based on the defined values."
+    },
+    {
+      "id": "BUG-13",
+      "title": "PUT /api/offenders/{id} performs no validation at all",
+      "severity": "High",
+      "priority": "P2",
+      "status": "Open",
+      "requirements": ["FR-04", "API-03"],
+      "layer": "API",
+      "testCases": ["TC-24"],
+      "steps": [
+        "PUT /api/offenders/{id} with firstName \"\".",
+        "PUT with nationalId of another offender (305412876).",
+        "PUT with dateOfBirth \"2099-01-15\" or riskLevel \"Extreme\"."
+      ],
+      "expected": "400 with error description for each (same rules as create, API-03).",
+      "actual": "200 for every request and the invalid values are stored — even an empty first name, which POST correctly rejects.",
+      "layerAnalysis": "API — the create validator is not applied to update.",
+      "evidence": "PUT {firstName:\"\"} → 200 {\"firstName\":\"\"}\nPUT {nationalId:\"305412876\"} → 200\nPUT {dateOfBirth:\"2099-01-15\"} → 200",
+      "impact": "Every create-time rule can be bypassed by creating a valid record and editing it."
+    },
+    {
+      "id": "BUG-14",
+      "title": "Location points are not validated: invalid coordinates, negative speed, battery and signal out of range all accepted",
+      "severity": "High",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["FR-10", "API-03"],
+      "layer": "API",
+      "testCases": ["TC-41", "TC-43"],
+      "steps": [
+        "POST /api/offenders/{id}/locations with each of: lat 91, lat -91, lon 181, lon -181, speedKmh -1, batteryPct -1, batteryPct 101, signal 0, signal 6, timestamp \"garbage\", and an empty body {}.",
+        "(UI) Select an offender → + Add location → speed -5, battery 150 → Add."
+      ],
+      "expected": "400 with an error description for every invalid value; nothing saved.",
+      "actual": "201 {\"ok\":true} for every one; values stored as sent. {} creates a point at 0,0 with signal 0. The UI form adds the -5 km/h / 150% point to the table.",
+      "layerAnalysis": "API — no validation on the endpoint. The UI has no client-side checks either, but API-03 requires the server to enforce the rules.",
+      "evidence": "POST {lat:91,…} → 201 {\"ok\":true}\nPOST {batteryPct:101,…} → 201\nPOST {signal:6,…} → 201\nPOST {} → 201 (stored lat 0, lon 0, signal 0)\nUI trail row after form submit: \"32.10000 | 34.80000 | -5 km/h | 150% | 4/5\"",
+      "impact": "Corrupt telemetry is stored and displayed as real; it also triggers BUG-15 (console crash)."
+    },
+    {
+      "id": "BUG-15",
+      "title": "A trail point with signal outside 1–5 crashes the whole console to a blank page",
+      "severity": "Critical",
+      "priority": "P1",
+      "status": "Open",
+      "requirements": ["FR-08"],
+      "layer": "UI",
+      "testCases": ["TC-37"],
+      "steps": [
+        "Create an offender and POST a location with signal 6 (accepted, see BUG-14).",
+        "Open the console, search the offender and click the row."
+      ],
+      "expected": "Trail renders; the bad value is shown or flagged, the rest of the console keeps working.",
+      "actual": "The entire page goes blank (React root unmounted). Browser console: \"RangeError: Invalid count value: -1\". A reload brings the list back, but selecting that offender crashes it again.",
+      "layerAnalysis": "UI. The popup text is built with \"▮\".repeat(signal) + \"▯\".repeat(5 − signal); for signal > 5 (or < 0) repeat() throws, inside a React effect, with no error boundary. The API returns the data correctly — the UI cannot render it. BUG-14 is what lets such data in, but the UI must not crash on unexpected data.",
+      "evidence": "pageerror: \"Invalid count value: -1\"\n#root innerHTML length after click: 0 (blank page)",
+      "impact": "One malformed reading from a device makes the monitoring console unusable for that offender, with no message to the operator."
+    },
+    {
+      "id": "BUG-16",
+      "title": "Add-location form fails silently when the server rejects the point",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "Open",
+      "requirements": ["FR-10"],
+      "layer": "UI",
+      "testCases": ["TC-43", "TC-45"],
+      "steps": [
+        "Select an offender → + Add location.",
+        "Leave Latitude and Longitude empty, click Add."
+      ],
+      "expected": "A clear error message (e.g. \"Latitude is required\"); the form stays open.",
+      "actual": "Nothing visible happens. The API answers 400; the UI throws an unhandled promise rejection (\"Request failed (400)\") and shows no message.",
+      "layerAnalysis": "UI. The add-location submit handler awaits the request without try/catch, unlike create/edit which show the error banner. (The empty-body 400 from the API is BUG-18.)",
+      "evidence": "pageerror: \"Request failed (400)\"\nNo .banner.error element; form still open, unchanged",
+      "impact": "The operator believes the point was saved, or does not know why it was not."
+    },
+    {
+      "id": "BUG-17",
+      "title": "Blank Speed / Battery in the add-location form are silently saved as 0",
+      "severity": "Medium",
+      "priority": "P2",
+      "status": "Open",
+      "requirements": ["FR-10"],
+      "layer": "UI",
+      "testCases": ["TC-44"],
+      "steps": [
+        "Select an offender → + Add location.",
+        "Enter only Latitude 32.2 and Longitude 34.9, leave Speed and Battery empty, click Add."
+      ],
+      "expected": "Rejected with a message (no value is not the same as 0).",
+      "actual": "A point with 0 km/h and 0% battery is added. Same for an empty Signal (→ 0, outside 1–5).",
+      "layerAnalysis": "UI. The form converts empty input with parseFloat(x) || 0 and parseInt(x) || 0 before sending, so the API receives explicit zeros.",
+      "evidence": "UI trail row after submit: \"32.20000 | 34.90000 | 0 km/h | 0% | 3/5\"",
+      "impact": "A fake 0% battery reading is recorded and, once BUG-05 is fixed, will show in Latest reading."
+    },
+    {
+      "id": "BUG-18",
+      "title": "Malformed request body returns 400 with an empty body (no error description)",
+      "severity": "Low",
+      "priority": "P3",
+      "status": "Open",
+      "requirements": ["API-03"],
+      "layer": "API",
+      "testCases": ["TC-20", "TC-41"],
+      "steps": [
+        "POST /api/offenders with body `garbage` (Content-Type application/json).",
+        "POST /api/offenders/{id}/locations with {\"lat\": null}."
+      ],
+      "expected": "400 with a JSON error description, like the other validation errors ({\"error\":\"…\"}).",
+      "actual": "400 with an empty body.",
+      "layerAnalysis": "API — model-binding failures bypass the error formatter used by the validator.",
+      "evidence": "POST api/offenders  body: garbage → 400, Content-Length 0\nPOST api/offenders/1/locations {\"lat\":null} → 400, empty body",
+      "impact": "Clients (including this UI, see BUG-16) can only show \"Request failed (400)\"."
+    }
+  ]
+}

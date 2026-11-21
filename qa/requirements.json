@@ -1,0 +1,20 @@
+{
+  "requirements": [
+    { "id": "FR-01", "area": "Offender management", "summary": "List sorted by last name, 5 per page; pager reaches every offender; count matches what is reachable" },
+    { "id": "FR-02", "area": "Offender management", "summary": "Search by first/last name or national ID — substring, case-insensitive" },
+    { "id": "FR-03", "area": "Offender management", "summary": "Create offender with required/unique/past-date/enum validation; invalid input rejected with clear message" },
+    { "id": "FR-04", "area": "Offender management", "summary": "Edit persists exactly the form values; untouched fields keep their values" },
+    { "id": "FR-05", "area": "Offender management", "summary": "Delete after confirmation removes offender and all trail data" },
+    { "id": "FR-06", "area": "Offender management", "summary": "Dates shown as DD/MM/YYYY and equal to the stored value" },
+    { "id": "FR-07", "area": "Trail & map", "summary": "Trail ordered oldest → newest in table and on the map line" },
+    { "id": "FR-08", "area": "Trail & map", "summary": "Clicking a map point shows its timestamp, speed, battery, signal" },
+    { "id": "FR-09", "area": "Trail & map", "summary": "Latest reading = most recent point; Last seen = its timestamp" },
+    { "id": "FR-10", "area": "Trail & map", "summary": "Add location with coordinate / speed / battery / signal validation" },
+    { "id": "FR-11", "area": "Dashboard & statistics", "summary": "Top-bar totals are live and accurate after every create/delete" },
+    { "id": "API-01", "area": "REST API", "summary": "GET /api/offenders paging contract; metadata consistent with data" },
+    { "id": "API-02", "area": "REST API", "summary": "404 for unknown resources; 201 on create; 204 on delete" },
+    { "id": "API-03", "area": "REST API", "summary": "POST/PUT enforce UI validation rules; 400 with error description" },
+    { "id": "API-04", "area": "REST API", "summary": "Trail endpoint returns points chronologically" },
+    { "id": "API-05", "area": "REST API", "summary": "Stats totals consistent with stored data at all times" }
+  ]
+}

@@ -1,0 +1,530 @@
+{
+  "meta": {
+    "executedOn": "2026-11-21",
+    "executedBy": "Neil",
+    "environment": "https://svcdemoaz.puremonitor.supercom.com/AQApplication/Neil/ (Chromium, Asia/Jerusalem)",
+    "notes": "Manual execution = exploratory run through the UI and curl/Python against the API on the date above. For automated cases the dashboard uses the latest automation result instead of the manual result."
+  },
+  "testCases": [
+    {
+      "id": "TC-01", "title": "First page lists 5 offenders sorted alphabetically by last name",
+      "requirements": ["FR-01"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} roster table",
+      "preconditions": "Seeded data present (11 offenders).",
+      "steps": ["Open the console.", "Read the 5 rows of page 1.", "Compare with GET api/offenders sorted by last name."],
+      "expected": "Exactly 5 rows, alphabetical by last name (Amar, Azulay, Biton, Cohen, Dahan).",
+      "automation": "UI", "spec": "tests/ui/01-roster.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-02", "title": "Pager reaches every offender; pages = ceil(total/5)",
+      "requirements": ["FR-01"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} pager \"Page x of y (n results)\"",
+      "preconditions": "Total offenders not a multiple of 5 (11 seeded).",
+      "steps": ["Open the console; read the pager.", "Click Next › until disabled, collecting names.", "Compare count with the results count."],
+      "expected": "\"Page 1 of 3 (11 results)\"; all 11 offenders reachable, Peretz on page 3.",
+      "automation": "UI", "spec": "tests/ui/01-roster.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-01"] }
+    },
+    {
+      "id": "TC-03", "title": "API totalPages = ceil(total / pageSize) for many page sizes",
+      "requirements": ["API-01", "FR-01"], "priority": "High", "type": "API",
+      "url": "GET {BASE_URL}api/offenders?page=1&pageSize={1,2,3,4,5,6,10,11,12,50}",
+      "preconditions": "Total offenders not a multiple of 5.",
+      "steps": ["Call the list endpoint for each page size.", "Compare totalPages with ceil(total/pageSize)."],
+      "expected": "totalPages correct for every size (11 items: size 5 → 3, size 4 → 3, size 3 → 4).",
+      "automation": "API", "spec": "tests/api/01-offenders-paging.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-01"] }
+    },
+    {
+      "id": "TC-04", "title": "Following totalPages returns every offender exactly once",
+      "requirements": ["API-01", "FR-01"], "priority": "High", "type": "API",
+      "url": "GET {BASE_URL}api/offenders?page={1..totalPages}&pageSize=5",
+      "preconditions": "Total offenders not a multiple of 5.",
+      "steps": ["Read page 1 and totalPages.", "Read pages 2..totalPages.", "Collect ids."],
+      "expected": "Collected ids = total, no duplicates.",
+      "automation": "API", "spec": "tests/api/01-offenders-paging.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-01"] }
+    },
+    {
+      "id": "TC-05", "title": "List response contract and last-name sort order",
+      "requirements": ["API-01", "FR-01"], "priority": "High", "type": "API",
+      "url": "GET {BASE_URL}api/offenders?page=1&pageSize=1000",
+      "preconditions": "—",
+      "steps": ["Call the list endpoint.", "Check fields and types.", "Check sort order."],
+      "expected": "items[], total, page, pageSize, totalPages (integers); total = items.length; sorted by last name.",
+      "automation": "API", "spec": "tests/api/01-offenders-paging.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-06", "title": "Out-of-range and invalid paging parameters handled gracefully",
+      "requirements": ["API-01"], "priority": "Low", "type": "Negative",
+      "url": "GET {BASE_URL}api/offenders?page=999 | page=0 | page=-1&pageSize=-5 | pageSize=0",
+      "preconditions": "—",
+      "steps": ["Call the list endpoint with each parameter set."],
+      "expected": "No 5xx. Page beyond the end → empty items with metadata; invalid values clamped to ≥ 1.",
+      "automation": "API", "spec": "tests/api/01-offenders-paging.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-07", "title": "Sorting is case-insensitive (lower-case last name sorts among A…)",
+      "requirements": ["FR-01"], "priority": "Low", "type": "Data",
+      "url": "POST {BASE_URL}api/offenders then UI {BASE_URL} roster",
+      "preconditions": "Create an offender with last name \"abergel\".",
+      "steps": ["Create the offender.", "Open the roster."],
+      "expected": "\"abergel\" appears before \"Amar\", not after \"Peretz\".",
+      "automation": "Manual",
+      "manual": { "result": "Passed", "notes": "Observed order: '', abergel, Amar, Azulay … (the '' entry is BUG-10 data)." }
+    },
+    {
+      "id": "TC-08", "title": "Search matches substrings of first name, last name and national ID",
+      "requirements": ["FR-02"], "priority": "High", "type": "API",
+      "url": "GET {BASE_URL}api/offenders?search={Cohen|ohe|Dav|412876}",
+      "preconditions": "Seeded Cohen, David (305412876).",
+      "steps": ["Search each term."],
+      "expected": "Cohen, David is returned for every term.",
+      "automation": "API", "spec": "tests/api/02-offenders-search.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-09", "title": "Search is case-insensitive (API)",
+      "requirements": ["FR-02"], "priority": "High", "type": "API",
+      "url": "GET {BASE_URL}api/offenders?search={cohen|COHEN|dAVID}",
+      "preconditions": "Seeded Cohen, David.",
+      "steps": ["Search each term."],
+      "expected": "Cohen, David is returned for every term.",
+      "automation": "API", "spec": "tests/api/02-offenders-search.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-07"] }
+    },
+    {
+      "id": "TC-10", "title": "Lower-case search in the UI finds the offender",
+      "requirements": ["FR-02"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} search box → GET api/offenders?search=cohen",
+      "preconditions": "Seeded Cohen, David.",
+      "steps": ["Type \"cohen\" in the search box."],
+      "expected": "Row \"Cohen, David\" is shown.",
+      "automation": "UI", "spec": "tests/ui/01-roster.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-07"] }
+    },
+    {
+      "id": "TC-11", "title": "Special characters / no-match search return an empty result",
+      "requirements": ["FR-02"], "priority": "Low", "type": "Negative",
+      "url": "GET {BASE_URL}api/offenders?search={% | _ | ' | \" | zzzz…}",
+      "preconditions": "—",
+      "steps": ["Search each term."],
+      "expected": "200, total 0, empty items — wildcards treated literally, no error.",
+      "automation": "API", "spec": "tests/api/02-offenders-search.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-12", "title": "Operator creates a valid offender through the UI",
+      "requirements": ["FR-03", "FR-11"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} + Add Offender → POST api/offenders",
+      "preconditions": "—",
+      "steps": ["Click + Add Offender.", "Fill all fields with valid values (unique national ID).", "Click Create."],
+      "expected": "201; toast \"Offender created\"; row shows the entered values; Offenders and Active counters +1.",
+      "automation": "UI", "spec": "tests/ui/03-offender-crud.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-13", "title": "API creates a valid offender with 201 and stores it as sent",
+      "requirements": ["FR-03", "API-02"], "priority": "High", "type": "API",
+      "url": "POST {BASE_URL}api/offenders → GET api/offenders/{id}",
+      "preconditions": "—",
+      "steps": ["POST a valid payload.", "GET the new id."],
+      "expected": "201 with id; GET returns the same values.",
+      "automation": "API", "spec": "tests/api/03-offenders-create.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-14", "title": "First name is required (empty / whitespace rejected)",
+      "requirements": ["FR-03", "API-03"], "priority": "High", "type": "Negative",
+      "url": "POST {BASE_URL}api/offenders",
+      "preconditions": "—",
+      "steps": ["POST with firstName \"\".", "POST with firstName \"   \"."],
+      "expected": "400 {\"error\":\"First name is required.\"}; offender count unchanged.",
+      "automation": "API", "spec": "tests/api/03-offenders-create.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-15", "title": "Last name and national ID are required",
+      "requirements": ["FR-03", "API-03"], "priority": "High", "type": "Negative",
+      "url": "POST {BASE_URL}api/offenders",
+      "preconditions": "—",
+      "steps": ["POST with lastName \"\".", "POST with nationalId \"\"."],
+      "expected": "400 with error description; nothing saved.",
+      "automation": "API", "spec": "tests/api/03-offenders-create.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-10"] }
+    },
+    {
+      "id": "TC-16", "title": "Duplicate national ID is rejected",
+      "requirements": ["FR-03", "API-03"], "priority": "High", "type": "Negative",
+      "url": "POST {BASE_URL}api/offenders (nationalId 305412876)",
+      "preconditions": "Seeded Cohen owns 305412876.",
+      "steps": ["POST a valid payload with nationalId 305412876.", "Search the ID."],
+      "expected": "400; only one offender owns the ID.",
+      "automation": "API", "spec": "tests/api/03-offenders-create.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-09"] }
+    },
+    {
+      "id": "TC-17", "title": "Date of birth must be a valid date in the past",
+      "requirements": ["FR-03", "API-03"], "priority": "High", "type": "Negative",
+      "url": "POST {BASE_URL}api/offenders",
+      "preconditions": "—",
+      "steps": ["POST with dateOfBirth one year in the future.", "POST with dateOfBirth \"not-a-date\"."],
+      "expected": "400 for both; nothing saved.",
+      "automation": "API", "spec": "tests/api/03-offenders-create.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-11"] }
+    },
+    {
+      "id": "TC-18", "title": "Risk level and status restricted to allowed values",
+      "requirements": ["FR-03", "API-03"], "priority": "Medium", "type": "Negative",
+      "url": "POST {BASE_URL}api/offenders",
+      "preconditions": "—",
+      "steps": ["POST with riskLevel \"Critical\".", "POST with status \"Deleted\"."],
+      "expected": "400 for both.",
+      "automation": "API", "spec": "tests/api/03-offenders-create.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-12"] }
+    },
+    {
+      "id": "TC-19", "title": "Empty create form shows a clear error and saves nothing",
+      "requirements": ["FR-03"], "priority": "Medium", "type": "Negative",
+      "url": "UI {BASE_URL} + Add Offender → Create (empty)",
+      "preconditions": "—",
+      "steps": ["Open + Add Offender.", "Click Create without filling anything."],
+      "expected": "Error banner \"First name is required.\"; modal stays open; count unchanged.",
+      "automation": "UI", "spec": "tests/ui/03-offender-crud.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-20", "title": "Malformed JSON body returns 400 with an error description",
+      "requirements": ["API-03"], "priority": "Low", "type": "Negative",
+      "url": "POST {BASE_URL}api/offenders body \"this is not json\"",
+      "preconditions": "—",
+      "steps": ["POST a non-JSON body."],
+      "expected": "400 with a JSON error description.",
+      "automation": "API", "spec": "tests/api/03-offenders-create.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-18"] }
+    },
+    {
+      "id": "TC-21", "title": "Editing one field keeps all untouched fields (incl. risk level)",
+      "requirements": ["FR-04"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} Edit → Save → PUT api/offenders/{id}",
+      "preconditions": "Offender with Risk level High.",
+      "steps": ["Click Edit (form shows High).", "Change only First name.", "Save; GET the offender."],
+      "expected": "First name changed; risk level still High; all other fields unchanged.",
+      "automation": "UI", "spec": "tests/ui/03-offender-crud.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-03"] }
+    },
+    {
+      "id": "TC-22", "title": "Changing risk level in the form persists the value shown",
+      "requirements": ["FR-04"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} Edit → Risk level Medium → Save",
+      "preconditions": "Offender with Risk level High.",
+      "steps": ["Click Edit.", "Select Medium.", "Save; GET the offender."],
+      "expected": "Risk level Medium in list and API.",
+      "automation": "UI", "spec": "tests/ui/03-offender-crud.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-03"] }
+    },
+    {
+      "id": "TC-23", "title": "API PUT with a full valid payload persists every field",
+      "requirements": ["FR-04"], "priority": "High", "type": "API",
+      "url": "PUT {BASE_URL}api/offenders/{id} → GET api/offenders/{id}",
+      "preconditions": "Test offender exists.",
+      "steps": ["PUT new valid values for all fields.", "GET the offender."],
+      "expected": "200; stored values equal the PUT body.",
+      "automation": "API", "spec": "tests/api/04-offenders-update-delete.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-24", "title": "PUT enforces the same validation as create",
+      "requirements": ["FR-04", "API-03"], "priority": "High", "type": "Negative",
+      "url": "PUT {BASE_URL}api/offenders/{id}",
+      "preconditions": "Test offender exists.",
+      "steps": ["PUT with empty first name / future DOB / riskLevel \"Extreme\" / another offender's national ID."],
+      "expected": "400 for each; stored record unchanged.",
+      "automation": "API", "spec": "tests/api/04-offenders-update-delete.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-13"] }
+    },
+    {
+      "id": "TC-25", "title": "Delete requires confirmation and removes the offender",
+      "requirements": ["FR-05"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} Delete → confirm dialog → DELETE api/offenders/{id}",
+      "preconditions": "Test offender exists.",
+      "steps": ["Click Delete, dismiss the prompt.", "Click Delete, accept the prompt."],
+      "expected": "Prompt names the offender; dismiss keeps the row; accept removes it (toast \"Offender deleted\").",
+      "automation": "UI", "spec": "tests/ui/03-offender-crud.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-26", "title": "Deleted offender returns 404 on GET",
+      "requirements": ["FR-05", "API-02"], "priority": "High", "type": "API",
+      "url": "DELETE then GET {BASE_URL}api/offenders/{id}",
+      "preconditions": "Test offender exists.",
+      "steps": ["DELETE the offender.", "GET it."],
+      "expected": "404.",
+      "automation": "API", "spec": "tests/api/04-offenders-update-delete.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-08"] }
+    },
+    {
+      "id": "TC-27", "title": "Deleting an offender deletes their trail data",
+      "requirements": ["FR-05", "API-05"], "priority": "High", "type": "Data",
+      "url": "POST …/locations ×4 → DELETE api/offenders/{id} → GET api/offenders/{id}/trail",
+      "preconditions": "Test offender with 4 points.",
+      "steps": ["Delete the offender.", "Read its trail."],
+      "expected": "No points remain (404 or empty).",
+      "automation": "API", "spec": "tests/api/04-offenders-update-delete.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-02"] }
+    },
+    {
+      "id": "TC-28", "title": "DELETE returns 204; repeated DELETE returns 404",
+      "requirements": ["FR-05", "API-02"], "priority": "Medium", "type": "API",
+      "url": "DELETE {BASE_URL}api/offenders/{id} ×2",
+      "preconditions": "Test offender exists.",
+      "steps": ["DELETE twice."],
+      "expected": "204, then 404.",
+      "automation": "API", "spec": "tests/api/04-offenders-update-delete.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-29", "title": "Roster dates of birth are DD/MM/YYYY and equal to the stored value",
+      "requirements": ["FR-06"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} Date of birth column vs GET api/offenders",
+      "preconditions": "Seeded data.",
+      "steps": ["Read every DOB on every reachable page.", "Compare with the API value."],
+      "expected": "e.g. Cohen 1982-03-07 → 07/03/1982; Mizrahi 1988-01-12 → 12/01/1988.",
+      "automation": "UI", "spec": "tests/ui/01-roster.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-04"] }
+    },
+    {
+      "id": "TC-30", "title": "Detail header shows the stored date of birth",
+      "requirements": ["FR-06"], "priority": "Medium", "type": "UI",
+      "url": "UI {BASE_URL} select Mizrahi → header \"DOB:\"",
+      "preconditions": "Seeded Mizrahi, Rachel (1988-01-12).",
+      "steps": ["Select Mizrahi, Rachel.", "Read DOB in the header."],
+      "expected": "DOB: 12/01/1988.",
+      "automation": "UI", "spec": "tests/ui/01-roster.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-04"] }
+    },
+    {
+      "id": "TC-31", "title": "Trail timestamps shown as DD/MM/YYYY HH:mm matching the stored instant",
+      "requirements": ["FR-06"], "priority": "Low", "type": "UI",
+      "url": "UI {BASE_URL} trail table Timestamp column vs GET api/offenders/1/trail",
+      "preconditions": "Browser timezone Asia/Jerusalem.",
+      "steps": ["Select Cohen, David.", "Compare point #1 timestamp with the API (2026-08-09T11:29Z)."],
+      "expected": "09/08/2026, 14:29 (UTC+3 in August).",
+      "automation": "Manual",
+      "manual": { "result": "Passed", "notes": "Also covered indirectly by TC-36 (popup time) and TC-39 (Last seen)." }
+    },
+    {
+      "id": "TC-32", "title": "Trail API returns points chronologically",
+      "requirements": ["API-04", "FR-07"], "priority": "High", "type": "API",
+      "url": "GET {BASE_URL}api/offenders/{1..11}/trail; POST 4 points out of order then GET trail",
+      "preconditions": "Seeded trails; test offender with 4 points inserted 10:30, 10:00, 10:45, 10:15.",
+      "steps": ["Read each trail.", "Compare with timestamp order."],
+      "expected": "Every trail oldest → newest.",
+      "automation": "API", "spec": "tests/api/05-trail.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-06"] }
+    },
+    {
+      "id": "TC-33", "title": "Trail table is ordered oldest to newest",
+      "requirements": ["FR-07"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} select Cohen → trail table",
+      "preconditions": "Seeded Cohen (16 points, stored out of order).",
+      "steps": ["Select Cohen, David.", "Read the # column."],
+      "expected": "Point ids in timestamp order.",
+      "automation": "UI", "spec": "tests/ui/02-trail-map.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-06"] }
+    },
+    {
+      "id": "TC-34", "title": "Map line runs from the oldest point to the newest point",
+      "requirements": ["FR-07"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} select Cohen → Leaflet polyline",
+      "preconditions": "Seeded Cohen.",
+      "steps": ["Select Cohen, David.", "Locate the first and last vertex of the line.", "Match them to markers."],
+      "expected": "Line starts on the oldest point and ends on the newest.",
+      "automation": "UI", "spec": "tests/ui/02-trail-map.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-06"], "notes": "Visually the line zig-zags across the area." }
+    },
+    {
+      "id": "TC-35", "title": "Map shows one marker per trail point and a trail line",
+      "requirements": ["FR-07"], "priority": "Medium", "type": "UI",
+      "url": "UI {BASE_URL} select Cohen → map",
+      "preconditions": "Seeded Cohen (16 points).",
+      "steps": ["Select Cohen, David.", "Count markers and lines."],
+      "expected": "16 markers, 1 line, title \"Trail points (16)\".",
+      "automation": "UI", "spec": "tests/ui/02-trail-map.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-36", "title": "Clicking a map point shows its recorded data",
+      "requirements": ["FR-08"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} click marker → popup vs GET api/offenders/1/trail",
+      "preconditions": "Seeded Cohen.",
+      "steps": ["Click the first, a middle and the last marker.", "Compare popup with the API point of the same id."],
+      "expected": "Time, speed (km/h), battery (%), signal (1–5 bars) equal the API values.",
+      "automation": "UI", "spec": "tests/ui/02-trail-map.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-37", "title": "A point with an out-of-range signal does not crash the console",
+      "requirements": ["FR-08"], "priority": "High", "type": "Negative",
+      "url": "POST api/offenders/{id}/locations {signal:6} → UI {BASE_URL} select offender",
+      "preconditions": "Offender with one point signal = 6 (possible because of BUG-14).",
+      "steps": ["Select the offender."],
+      "expected": "Trail renders; no uncaught error; console stays usable.",
+      "automation": "UI", "spec": "tests/ui/02-trail-map.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-15"] }
+    },
+    {
+      "id": "TC-38", "title": "Latest reading shows speed/battery/signal of the most recent point",
+      "requirements": ["FR-09"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} select Cohen → Latest reading vs newest point of GET api/offenders/1/trail",
+      "preconditions": "Seeded Cohen; newest point id 1 (11:29Z): 23 km/h, 68%, 1/5.",
+      "steps": ["Select Cohen, David.", "Read the card."],
+      "expected": "23 km/h · 68% · 1/5.",
+      "automation": "UI", "spec": "tests/ui/02-trail-map.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-05"] }
+    },
+    {
+      "id": "TC-39", "title": "Last seen shows the most recent timestamp",
+      "requirements": ["FR-09", "FR-06"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} select Cohen → Last seen",
+      "preconditions": "Seeded Cohen.",
+      "steps": ["Select Cohen, David.", "Read Last seen."],
+      "expected": "09/08/2026, 14:29 (newest point, Asia/Jerusalem).",
+      "automation": "UI", "spec": "tests/ui/02-trail-map.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-40", "title": "Operator adds a valid location point through the UI",
+      "requirements": ["FR-10", "FR-11"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} + Add location → POST api/offenders/{id}/locations",
+      "preconditions": "Test offender without points.",
+      "steps": ["Select the offender.", "+ Add location: 32.0901 / 34.7802 / 18.5 / 77 / 4.", "Click Add."],
+      "expected": "201; row with these values; Trail points counter +1.",
+      "automation": "UI", "spec": "tests/ui/04-locations-and-stats.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-41", "title": "API rejects out-of-range location values",
+      "requirements": ["FR-10", "API-03"], "priority": "High", "type": "Negative",
+      "url": "POST {BASE_URL}api/offenders/{id}/locations",
+      "preconditions": "Test offender.",
+      "steps": ["POST lat ±91 / lon ±181 / speed −1 / battery −1, 101 / signal 0, 6 / lat null, one at a time.", "Read the trail."],
+      "expected": "400 with error description for each; trail stays empty.",
+      "automation": "API", "spec": "tests/api/05-trail.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-14", "BUG-18"] }
+    },
+    {
+      "id": "TC-42", "title": "API accepts valid boundary location values",
+      "requirements": ["FR-10"], "priority": "Medium", "type": "API",
+      "url": "POST {BASE_URL}api/offenders/{id}/locations",
+      "preconditions": "Test offender.",
+      "steps": ["POST lat 90 / lon 180 / speed 0 / battery 0 / signal 1.", "POST lat −90 / lon −180 / battery 100 / signal 5."],
+      "expected": "201 for both; stored exactly.",
+      "automation": "API", "spec": "tests/api/05-trail.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-43", "title": "UI rejects invalid location values with a visible error",
+      "requirements": ["FR-10"], "priority": "High", "type": "Negative",
+      "url": "UI {BASE_URL} + Add location (speed −5, battery 150)",
+      "preconditions": "Test offender.",
+      "steps": ["+ Add location with speed −5 and battery 150.", "Click Add."],
+      "expected": "400; error message shown; no point added.",
+      "automation": "UI", "spec": "tests/ui/04-locations-and-stats.ui.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-14", "BUG-16"] }
+    },
+    {
+      "id": "TC-44", "title": "Blank speed / battery are not silently saved as 0",
+      "requirements": ["FR-10"], "priority": "Medium", "type": "Negative",
+      "url": "UI {BASE_URL} + Add location (lat/lon only)",
+      "preconditions": "Test offender.",
+      "steps": ["+ Add location with only latitude and longitude.", "Click Add."],
+      "expected": "Rejected with a message.",
+      "automation": "Manual",
+      "manual": { "result": "Failed", "bugs": ["BUG-17"] }
+    },
+    {
+      "id": "TC-45", "title": "UI shows an error when the server rejects a location",
+      "requirements": ["FR-10"], "priority": "Medium", "type": "Negative",
+      "url": "UI {BASE_URL} + Add location (all blank) → 400",
+      "preconditions": "Test offender.",
+      "steps": ["+ Add location with every field blank.", "Click Add."],
+      "expected": "Visible error message.",
+      "automation": "Manual",
+      "manual": { "result": "Failed", "bugs": ["BUG-16"] }
+    },
+    {
+      "id": "TC-46", "title": "Top-bar counters equal the stats API",
+      "requirements": ["FR-11", "API-05"], "priority": "High", "type": "UI",
+      "url": "UI {BASE_URL} top bar vs GET api/stats",
+      "preconditions": "—",
+      "steps": ["Open the console.", "Compare counters with the API."],
+      "expected": "Offenders, Active and Trail points equal the API values.",
+      "automation": "UI", "spec": "tests/ui/04-locations-and-stats.ui.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-47", "title": "Counters update after creating offenders and points",
+      "requirements": ["API-05", "FR-11"], "priority": "High", "type": "API",
+      "url": "GET api/stats → POST api/offenders ×2 → POST …/locations ×4 → GET api/stats",
+      "preconditions": "—",
+      "steps": ["Create one Active offender with 4 points and one Inactive offender.", "Compare stats."],
+      "expected": "+2 offenders, +1 active, +4 points.",
+      "automation": "API", "spec": "tests/api/06-stats.api.spec.ts",
+      "manual": { "result": "Passed" }
+    },
+    {
+      "id": "TC-48", "title": "Trail-point total drops when an offender with a trail is deleted",
+      "requirements": ["API-05", "FR-11", "FR-05"], "priority": "High", "type": "Data",
+      "url": "GET api/stats → DELETE api/offenders/{id} → GET api/stats",
+      "preconditions": "Test offender with 4 points.",
+      "steps": ["Delete the offender.", "Compare stats."],
+      "expected": "−1 offender, −4 points.",
+      "automation": "API", "spec": "tests/api/06-stats.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-02"] }
+    },
+    {
+      "id": "TC-49", "title": "Offender totals match the stored offenders",
+      "requirements": ["API-05", "FR-11"], "priority": "High", "type": "API",
+      "url": "GET api/stats vs GET api/offenders?pageSize=1000",
+      "preconditions": "—",
+      "steps": ["Read stats and the full list.", "Count total and Active."],
+      "expected": "totalOffenders = list total; activeOffenders = number with status Active.",
+      "automation": "API", "spec": "tests/api/06-stats.api.spec.ts",
+      "manual": { "result": "Passed", "notes": "totalLocationPoints is NOT consistent (186 reported vs 166 owned) — see BUG-02 / TC-48." }
+    },
+    {
+      "id": "TC-50", "title": "GET unknown offender returns 404",
+      "requirements": ["API-02"], "priority": "High", "type": "Negative",
+      "url": "GET {BASE_URL}api/offenders/987654",
+      "preconditions": "—",
+      "steps": ["GET a non-existent id."],
+      "expected": "404.",
+      "automation": "API", "spec": "tests/api/04-offenders-update-delete.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-08"] }
+    },
+    {
+      "id": "TC-51", "title": "Trail of an unknown offender returns 404",
+      "requirements": ["API-02"], "priority": "Medium", "type": "Negative",
+      "url": "GET {BASE_URL}api/offenders/987654/trail",
+      "preconditions": "—",
+      "steps": ["GET the trail of a non-existent id."],
+      "expected": "404.",
+      "automation": "API", "spec": "tests/api/05-trail.api.spec.ts",
+      "manual": { "result": "Failed", "bugs": ["BUG-08"] }
+    },
+    {
+      "id": "TC-52", "title": "PUT / DELETE / POST-location on an unknown offender return 404",
+      "requirements": ["API-02"], "priority": "Medium", "type": "Negative",
+      "url": "PUT · DELETE {BASE_URL}api/offenders/987654 · POST …/987654/locations",
+      "preconditions": "—",
+      "steps": ["Call each endpoint with a non-existent id."],
+      "expected": "404 for each.",
+      "automation": "API", "spec": "tests/api/04-offenders-update-delete.api.spec.ts",
+      "manual": { "result": "Passed" }
+    }
+  ]
+}
