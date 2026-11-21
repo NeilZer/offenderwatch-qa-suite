@@ -92,9 +92,9 @@ class PlatformReporter implements Reporter {
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
-    const status = mapStatus(test, result);
-    const error = result.errors[0];
     const knownBugs = this.knownBugs(test);
+    const status = mapStatus(test, result, knownBugs.map((b) => b.id));
+    const error = result.errors[0];
     const log = this.buildLog(test, result, status);
     this.logs.delete(test.id);
 
@@ -104,7 +104,7 @@ class PlatformReporter implements Reporter {
       await this.client!.post(`/scenarios/${id}/finish`, {
         status,
         durationMs: result.duration,
-        errorMessage: error ? stripAnsi(error.message ?? error.value ?? '') : null,
+        errorMessage: error ? failureMessage(test, status, knownBugs, stripAnsi(error.message ?? error.value ?? '')) : null,
         errorStack: error ? stripAnsi(error.stack ?? '') : null,
         knownBugs,
       });
@@ -192,14 +192,33 @@ function relativeFile(test: TestCase): string {
 /**
  * Playwright → platform status.
  *   expected to pass:  passed → Passed ; failed / timedOut → Failed
- *   expected to fail (knownBug): failed / timedOut → ExpectedFailure ; passed → UnexpectedPass
+ *   expected to fail (knownBug):
+ *     passed                                   → UnexpectedPass (the bug looks fixed — retest)
+ *     failed WITH its own [BUG-xx] tag         → ExpectedFailure (it failed on the documented bug)
+ *     failed WITHOUT the tag (timeout, broken
+ *     selector, setup error, network …)        → Failed — a real problem, never hidden as "expected"
+ * Same rule as the Part 4 dashboard (scripts/lib/qa-model.mjs).
  */
-function mapStatus(test: TestCase, result: TestResult): string {
+export function mapStatus(test: Pick<TestCase, 'expectedStatus'>, result: Pick<TestResult, 'status' | 'errors'>, knownBugIds: string[]): string {
   if (result.status === 'skipped') return 'Skipped';
   if (result.status === 'interrupted') return 'Interrupted';
   const passed = result.status === 'passed';
-  if (test.expectedStatus === 'failed') return passed ? 'UnexpectedPass' : 'ExpectedFailure';
-  return passed ? 'Passed' : 'Failed';
+  if (test.expectedStatus !== 'failed') return passed ? 'Passed' : 'Failed';
+  if (passed) return 'UnexpectedPass';
+  return failedOnItsOwnBug(result, knownBugIds) ? 'ExpectedFailure' : 'Failed';
+}
+
+/** True when an error message carries the [BUG-xx] tag of one of the test's documented bugs. */
+export function failedOnItsOwnBug(result: Pick<TestResult, 'errors'>, knownBugIds: string[]): boolean {
+  const text = stripAnsi(result.errors.map((e) => `${e.message ?? ''} ${e.value ?? ''}`).join(' '));
+  return knownBugIds.some((id) => text.includes(`[${id}]`));
+}
+
+/** Explains a known-bug test that failed for a DIFFERENT reason, so the reader knows why it is red. */
+function failureMessage(test: TestCase, status: string, bugs: KnownBugMeta[], message: string): string {
+  if (status !== 'Failed' || test.expectedStatus !== 'failed') return message;
+  const ids = bugs.map((b) => b.id).join(', ') || 'a documented bug';
+  return `Expected to fail on ${ids}, but it failed for a different reason (no [BUG-xx] tag in the error):\n${message}`;
 }
 
 function evidenceKind(name: string, contentType: string): string | null {
